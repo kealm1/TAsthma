@@ -227,7 +227,7 @@ function initialize() {
     }).done(function(res) {
         pm10Measures =  res;
     }).fail(function() {
-        alert('Sorry, the request has failed');
+        alert('Oops, Something wrong at the back');
         pm10Measures = '[]';
     });
 
@@ -329,7 +329,7 @@ function convertToGeoJson(data) {
 function manualLookUp() {
     var text = input.value;
     if (text == null || text.trim().length == 0) {
-        alert('please type in location information (address, postcode, etc.)')
+        alert('Oops! please type in your address, or postcode, or places')
     } else {
         var req = {
             bounds: searchBound,
@@ -346,12 +346,12 @@ function callback(results,status) {
         var lat = priRes.geometry.location.lat();
         var lon = priRes.geometry.location.lng();
         if (getDistance(-37.8141,144.9633,lat,lon) > 300) { // 300km away from cbd will be considered as out of our website scope
-            alert('No place found in valid area');
+            alert('Oops! The place you\'re looking for is not covered yet.');
             return;
         }
         locationInfoByCoords(lat,lon);
     } else {
-        alert('Cannot find place you are searching');
+        alert('Oops! we cannot find the location, please try something else');
     }
 }
 
@@ -365,10 +365,10 @@ function locationInfoByCoords(lat,lon) {
                 var name = getLocationNameFromResponse(components);
                 getCurrentInfo(name,lat,lon);
             } else {
-                window.alert('Cannot find your location name!');
+                window.alert('Oops! Cannot find your location name!');
             }
         } else {
-            window.alert('finding your area name failed due to: ' + status);
+            window.alert('Oops! Finding your area name failed due to: ' + status);
         }
     });
 }
@@ -456,10 +456,10 @@ function locateMe() {
             var lon = position.coords.longitude;
             locationInfoByCoords(lat, lon);
         }, function() {
-            alert('Sorry, the service has failed.');
+            alert('Oop! The service has failed.');
         });
     } else {
-        alert('Sorry, your browser doesn\'t support this function');
+        alert('Oops! Looks like your browser doesn\'t support this function. ');
     }
 }
 
@@ -471,7 +471,7 @@ function initLocate() {
             var lon = position.coords.longitude;
             indexSum(lat, lon);
         }, function() {
-            alert('Sorry, cannot find your current location');
+            alert('Oops! We cannot find your current location');
             indexSum(-37.8141,144.9633);
             //locating unavailable, using CBD
         });
