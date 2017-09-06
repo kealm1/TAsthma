@@ -1,7 +1,7 @@
 /*
-V2.2
+V2.2.3
 Author: team IRIS
-Date: 03/09/17
+Date: 05/09/17
 
 V1.1
 * Add if condition to prevent accuweather api ran out of call and destroy all weather info display
@@ -50,6 +50,10 @@ V1.1
 *
 *   v2.2.2
 *      - bugfixed (infoWindow)
+*
+*   v2.2.3
+*       - using google geocoding to get suburb name instead of using openWeatherMap, reduce risk
+*       - bug and typo fixed
 *
 * */
 
@@ -118,6 +122,9 @@ var searchBound;
 //places service for manual text search
 var searchService;
 
+//get location name by coordinates
+var geoCodingService;
+
 var autoCom; //google autocomplete
 
 var marker; //mark search result
@@ -173,8 +180,6 @@ function initialize() {
             right: '20px', top: '20px', // button repositioning
         });
     });
-
- console.log(pm10Measures);
   //  initialize map
     var mapOptions = {
         zoom: 10,
@@ -202,19 +207,19 @@ function initialize() {
     autoCom = new google.maps.places.Autocomplete(input, option);
 
     searchService = new google.maps.places.PlacesService(map); //init manual search service
+    geoCodingService = new google.maps.Geocoder; //initialise geocoding
 
     //perform auto search function, results automatically show if choose suggested location, or hit enter to do the search
    autoCom.addListener('place_changed', function() {
         placeSearched = autoCom.getPlace();
         if (!placeSearched || !placeSearched.geometry) {
-            manualLookUp();
-        } else {
-            getCurrentInfo(placeSearched.geometry.location.lat(),placeSearched.geometry.location.lng());
+            manualLookUp(); //if it's not a valid place object, perform a places textSearch to find location
+        } else { //get risk info and display to website
+            locationInfoByCoords(placeSearched.geometry.location.lat(),placeSearched.geometry.location.lng());
         }
     })
 
-
-//request data
+//request pm10 data and store it
     $.ajax({
         url: 'scripts/pm10Request.php',
         type: 'GET',
@@ -281,19 +286,20 @@ function convertToGeoJson(data) {
     var pm10Value = getPM10Value(pm10Measures,lat,lon);
 
     var pm10Index = getPM10Index(pm10Value);
-    var windIndex = getWindIndex(data.wind.speed);
+    var windIndex = getWindIndex(data.wind.speed * 3.6);
     var grasslandIndex = getGrasslandIndex(lat, lon);
     var weatherIndex = getWeatherIndex(data.weather[0].id);
 
     var score = pm10Index + windIndex + grasslandIndex + weatherIndex;
     var riskRating = getRiskRating(score).rating;
+    console.log(data.name + ' ' + data.wind.speed * 3.6 + " "+ pm10Value);
     var feature = {
         type: "Feature",
         properties: {
             city: data.name,
             temp: data.main.temp,
             weather: data.weather[0].main,
-            windSpeed: data.wind.speed,
+            windSpeed: data.wind.speed * 3.6,
             pm10: pm10Value,
             riskScore: score,
             riskRating: riskRating,
@@ -323,7 +329,7 @@ function convertToGeoJson(data) {
 function manualLookUp() {
     var text = input.value;
     if (text == null || text.trim().length == 0) {
-        alert('please type in location information (address, postcode, etc.')
+        alert('please type in location information (address, postcode, etc.)')
     } else {
         var req = {
             bounds: searchBound,
@@ -339,19 +345,48 @@ function callback(results,status) {
         var priRes = results[0];
         var lat = priRes.geometry.location.lat();
         var lon = priRes.geometry.location.lng();
-        if (getDistance(-37.8141,144.9633,lat,lon) > 300) { //results not in melb region
-            alert('No place found in VIC area');
+        if (getDistance(-37.8141,144.9633,lat,lon) > 300) { // 300km away from cbd will be considered as out of our website scope
+            alert('No place found in valid area');
             return;
         }
-        getCurrentInfo(priRes.geometry.location.lat(), priRes.geometry.location.lng());
+        locationInfoByCoords(lat,lon);
     } else {
-        alert('cannot find place you are searching');
+        alert('Cannot find place you are searching');
     }
 }
 
+//find suburbs using google geocoding and process and display to get risk info
+function locationInfoByCoords(lat,lon) {
+    var coords= {lat: lat, lng: lon};
+    geoCodingService.geocode({'location': coords, 'bounds': searchBound}, function(results, status) {
+        if (status === 'OK') {
+            if (results[0]) {
+                var components = results[0].address_components;
+                var name = getLocationNameFromResponse(components);
+                getCurrentInfo(name,lat,lon);
+            } else {
+                window.alert('Cannot find your location name!');
+            }
+        } else {
+            window.alert('finding your area name failed due to: ' + status);
+        }
+    });
+}
+
+//retrieve suburb name from geocoding response
+function getLocationNameFromResponse(components){
+    var name = 'nothing';
+    for (var i = 0; i < components.length; i++) {
+        if (components[i].types[0] == 'locality' || components[i].types[0] == 'political') {
+            name = components[i].long_name;
+            break;
+        }
+    }
+    return name;
+}
 
 /*function to place markers, and display risk info in popup and info box*/
-function getCurrentInfo(lat, lon) {
+function getCurrentInfo(name, lat, lon) {
     var req = createWeatherReq(lat, lon);
     req.onload = function() {
         if (marker != undefined) {
@@ -369,16 +404,22 @@ function getCurrentInfo(lat, lon) {
         });
         var pm10Value = getPM10Value(pm10Measures,lat,lon);
 
-        var windIndex = getWindIndex(res.wind.speed);
+        var windIndex = getWindIndex(res.wind.speed * 3.6);
         var weatherIndex = getWeatherIndex(res.weather[0].id);
         var pm10Index = getPM10Index(pm10Value);
         var grassLandIndex = getGrasslandIndex(lat,lon)
         var riskScore = windIndex + weatherIndex + pm10Index + grassLandIndex;
 
-        markerInfoWindow(res.name, res.main.temp, res.weather[0].main, riskScore);
+        console.log(name + ' ' + res.wind.speed * 3.6 + ' ')
+        //if location name was not defined by geocoding service, using the OpenWeatherMap name instead
+        if (name == 'nothing') {
+            name = res.name;
+        }
+
+        markerInfoWindow(name, res.main.temp, res.weather[0].main, riskScore);
 
         marker.addListener('click', function() {
-            markerInfoWindow(res.name, res.main.temp, res.weather[0].main, riskScore);
+            markerInfoWindow(name, res.main.temp, res.weather[0].main, riskScore);
         });
     };
     req.send();
@@ -411,10 +452,11 @@ function createWeatherReq(lat, lon) {
 function locateMe() {
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(function(position) {
-            getCurrentInfo(position.coords.latitude, position.coords.longitude);
+            var lat = position.coords.latitude;
+            var lon = position.coords.longitude;
+            locationInfoByCoords(lat, lon);
         }, function() {
             alert('Sorry, the service has failed.');
-            var ele = document.getElementById('infoBox');
         });
     } else {
         alert('Sorry, your browser doesn\'t support this function');
@@ -427,7 +469,7 @@ function initLocate() {
         navigator.geolocation.getCurrentPosition(function(position) {
             var lat = position.coords.latitude;
             var lon = position.coords.longitude;
-            indexSum(lat,lon);
+            indexSum(lat, lon);
         }, function() {
             alert('Sorry, cannot find your current location');
             indexSum(-37.8141,144.9633);
@@ -464,26 +506,41 @@ function degToRad(deg) {
     return deg * (Math.PI/180);
 }
 
-
 //calculate risk score and display risk info in box for a given location (using coords)
  function indexSum(lat, lon) {
-     var req = createWeatherReq(lat,lon);
-     req.onload = function() {
-         var res = JSON.parse(req.responseText);
+     var coords= {lat: lat, lng: lon};
+     geoCodingService.geocode({'location': coords}, function(results, status) {
+         if (status === 'OK') {
+             var name = 'nothing';
+             if (results[0]) {
+                 var components = results[0].address_components;
+                 name = getLocationNameFromResponse(components);
 
-         var name = res.name;
+                 var req = createWeatherReq(lat,lon);
+                 req.onload = function() {
+                     var res = JSON.parse(req.responseText);
 
-         var windIndex = getWindIndex(res.wind.speed);
-         var weatherIndex = getWeatherIndex(res.weather[0].id);
-         var pm10Index = getPM10Index(getPM10Value(pm10Measures,lat,lon));
-         var grasslandIndex = getGrasslandIndex(lat,lon);
+                     if (name == 'nothing') {
+                     name = res.name;}
 
-         var score = windIndex + weatherIndex + pm10Index + grasslandIndex;
+                     var windIndex = getWindIndex(res.wind.speed * 3.6);
+                     var weatherIndex = getWeatherIndex(res.weather[0].id);
+                     var pm10Index = getPM10Index(getPM10Value(pm10Measures,lat,lon));
+                     var grasslandIndex = getGrasslandIndex(lat,lon);
 
-         displayInfoInBox(name, score);
+                     var score = windIndex + weatherIndex + pm10Index + grasslandIndex;
 
-     }
-     req.send()
+                     displayInfoInBox(name, score);
+
+                 }
+                 req.send();
+             } else {
+                 window.alert('Cannot find your location name!');
+             }
+         } else {
+             window.alert('finding your area name failed due to: ' + status);
+         }
+     });
  }
 
  //index for wind factors
@@ -546,21 +603,6 @@ function getPM10Index(value) {
         return 0;
     }
 }
-
-/*/!*ajax call to a php script to request data from EPA API
-* NOTE: current logic cannot do the async request, THIS NEEDED TO BE FIXED*!/
-function getPM10Measure() {
-    $.ajax({
-        url: 'scripts/pm10Request.php',
-        type: 'GET',
-        async: false
-    }).done(function(res) {
-       pm10Mesures =  res;
-    }).fail(function() {
-        alert('Sorry, the request has failed');
-        pm10Mesures = '[]';
-    });
-}*/
 
 //get the risk info (rating, one sentence desc, and colour code.
 function getRiskRating(score) {
@@ -631,7 +673,7 @@ function setInfoWindowContent(city, degree, condition, score) {
                             "<br /><strong>" + city + "</strong>" +
                             "<br />" + degree + "&deg;C" +
                             "<br/>" + condition +
-                            "<br />" + "Risk Level:" + "<strong>" + rating.rating + "</strong>"
+                            "<br />" + "Risk Level:" + "<strong>" + rating.rating + "</strong>" +
                     "</div>";
      return content;
 }
