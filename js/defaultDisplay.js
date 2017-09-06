@@ -1,7 +1,7 @@
 /*
-V1.3
+V1.4
 Author: team IRIS
-Date: 27/08/17
+Date: 30/08/17
 
 V1.1
 * Add if condition to prevent accuweather api ran out of call and destroy all weather info display
@@ -18,7 +18,10 @@ V1.1
 * add locate me function using browser's geolocation
 *
 * V1.4
+* -bug fixed for search bar
+* -user can both hit enter or click button to do the search
 * -add places service to allow user do manual search (input text then search instead of select suggested location first
+* -basic score calculation based on weather and wind
 * */
 var map;
 var infoWindow;
@@ -30,10 +33,13 @@ var request;
 var openWeatherMapKey = "7814dd27bd44184ffe859c64f61f28e1";
 var openWeatherCurByCoordBase="https://api.openweathermap.org/data/2.5/weather?";
 
+var severeWeatherCode = [200,201,202,210,211,212,221,230,231,232,502,503,504];
 
+
+var searchService;
+var placeLimit = '&location=-37.8136,144.9631&radius=100000'; //bias the place search to melbourne region
 var autoCom; //help search
 var marker; //mark search result
-var placeService; //google places services
 var input; //search bar
 var placeSearched; //contains location with valid search
 //var typedInPat; //text place searc
@@ -52,26 +58,22 @@ function initialize() {
     map = new google.maps.Map(document.getElementById('mapDemo'),
         mapOptions);
 
-    //add places services for manual look up location
-    placeService = new google.maps.places.PlacesService(map);
-
     //configure search bar
     input = document.getElementById('search');
 
     autoCom = new google.maps.places.Autocomplete(input);
     autoCom.setComponentRestrictions({country: 'au'});
 
-   /* autoCom.addListener('place_changed', function() {
+    searchService = new google.maps.places.PlacesService(map);
+   autoCom.addListener('place_changed', function() {
         placeSearched = autoCom.getPlace();
-        if (!placeSearched) {
-            alert('Please select a suggested address');
-        } else if (!placeSearched.geometry) {
-            placeSearched = manualLookUp();
+        if (!placeSearched || !placeSearched.geometry) {
+            manualLookUp();
         } else {
             getCurrentWeather(placeSearched.geometry.location.lat(),placeSearched.geometry.location.lng());
         }
-    })*/
-    displayHeatMap();
+    })
+    //displayHeatMap();
 
     getWeathers();
 
@@ -97,6 +99,8 @@ function initialize() {
         infoWindow.open(map);
 
     });
+
+    initLocate();
 
 }
 
@@ -238,38 +242,33 @@ function searchLocation() {
 }
 //dup
 function manualLookUp() {
-    var text = input.val();
-    var placeToLook = {
-        query: text
-    };
-    placeService.textSearch(placeToLook, function() {
-        if (status == google.maps.places.PlacesServiceStatus.OK) {
-            var firstR = res[0]; //get first result from the list
-            var detailsReq = {
-                reference: firstR.reference
-            };
-            placeService.getDetails(detailsReq, function() {
-                if (status == google.maps.places.PlacesServiceStatus.OK) {
-                     placeSearched = firstR;
-                     getCurrentWeather(placeSearched.geometry.location.lat(),placeSearched.geometry.location.lng());
-                } else {
-                    alert('something has gone wrong');
-                }
-            });
-        } else {
-            alert ('cannot process request');
+    var text = input.value;
+    if (text == null || text.trim().length == 0) {
+        alert('please type in location information (address, postcode, etc.')
+    } else {
+        var req = {
+            location: new google.maps.LatLng(-37.8136,144.9631),
+            radius:100000,
+            query: text
         }
-    });
+        searchService.textSearch(req, callback);
+    }
 }
+
+function callback(results,status) {
+    if (status == google.maps.places.PlacesServiceStatus.OK) {
+        var priRes = results[0];
+        getCurrentWeather(priRes.geometry.location.lat(), priRes.geometry.location.lng());
+    } else {
+        alert('cannot find place you are searching');
+    }
+}
+
 
 //request current weather info
 function getCurrentWeather(lat, lon) {
-    var link = openWeatherCurByCoordBase + 'lat=' + lat + '&lon=' + lon + '&APPID=' + openWeatherMapKey + "&units=metric";
-    var newRequest = new XMLHttpRequest();
-    newRequest.open('get',link,true);
-    newRequest.send();
-
-    newRequest.onload = function() {
+    var req = createWeatherReq(lat, lon);
+    req.onload = function() {
         if (marker != undefined) {
         marker.setMap(null);
         }
@@ -284,6 +283,9 @@ function getCurrentWeather(lat, lon) {
             },
             map: map
         });
+
+        var riskScore =  getWeatherIndex(res.weather[0].id) + getWindIndex(res.wind.speed);
+
         marker.addListener('click', function() {
             infoWindow.setContent(
                 /*"<img src=" + "https://openweathermap.org/img/w/"
@@ -291,12 +293,21 @@ function getCurrentWeather(lat, lon) {
                 "<br /><strong>" + res.name + "</strong>"
                 + "<br />" + res.main.temp + "&deg;C"
                 + "<br />" + res.weather[0].main
-                + "<br />" + res.wind.speed + 'km/h'
+                + "<br />" + res.wind.speed + ' km/h'
                 + "<br />" + res.main.humidity + '%'
+                + "<br />" + 'risk score: ' + riskScore
             );
             infoWindow.open(map,marker);
         });
     };
+    req.send();
+}
+
+function createWeatherReq(lat, lon) {
+    var link = openWeatherCurByCoordBase + 'lat=' + lat + '&lon=' + lon + '&APPID=' + openWeatherMapKey + "&units=metric";
+    var newRequest = new XMLHttpRequest();
+    newRequest.open('get',link,true);
+    return newRequest;
 }
 
 function locateMe() {
@@ -304,54 +315,82 @@ function locateMe() {
         navigator.geolocation.getCurrentPosition(function(position) {
             getCurrentWeather(position.coords.latitude, position.coords.longitude);
         }, function() {
-            alert('Sorry, the service has failed.')
+            alert('Sorry, the service has failed.');
+            var ele = document.getElementById('infoBox');
         });
     } else {
         alert('Sorry, your browser doesn\'t support this function');
     }
 }
 
-/*function validateSearch() {
-    var text = input.val();
-    if (text.trim() == '' || text == null) {
-        alert('please type in information (location, address, postcode, etc.)');
-        return false;
-    } else if (placeSearched && text == typedInPat) {
-        getCurrentWeather(placeSearched.geometry.location.lat(), placeSearched.geometry.location.lng());
-        placeSearched = null;
-        typedInPat = '';
-        input.val('');
-        return false;
-    } else {
-        var placeToLook = {
-            query: text
-        };
-        placeService.textSearch(placeToLook, function() {
-            if (status == google.maps.places.PlacesServiceStatus.OK) {
-                var firstR = res[0]; //get first result from the list
-                var detailsReq = {
-                    reference: firstR.reference
-                };
-                placeService.getDetails(detailsReq, function() {
-                    if (status == google.maps.places.PlacesServiceStatus.OK) {
-                        placeSearched = firstR;
-                        typedInPat = input.val();
-                        document.getElementById('searchForm').submit();
-                    } else {
-                        alert('something has gone wrong');
-                    }
-                });
-            } else {
-                alert ('cannot process request');
-            }
+function initLocate() {
+    var ele = document.getElementById('infoBox');
+    var score = getWindSpeedAndWeatherSum(-37.8141,144.9633);
+    //locating unavailable, using CBD
+    var text = document.createTextNode('the risk score for Melbourne CBD is ' + score);
+    ele.appendChild(text);
+
+   /* var ele = document.getElementById('infoBox');
+    var text;
+    var score;
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+            score = getWindSpeedAndWeatherSum(position.coords.latitude, position.coords.longitude);
+           text = document.createTextNode('the score for your area is ' + score);
+        }, function() {
+            alert('Sorry, cannot find your current location');
+            score = getWindSpeedAndWeatherSum(-37.8141,144.9633);
+            //locating unavailable, using CBD
+           text = document.createTextNode('the risk score for Melbourne CBD is ' + score);
         });
-        return false;
+    } else {
+        alert('Sorry, your browser doesn\'t support this function');
+        score = getWindSpeedAndWeatherSum(-37.8141,144.9633);
+        //locating unavailable, using CBD
+       text = document.createTextNode('the risk score for Melbourne CBD is ' + score);
     }
-}*/
+
+    ele.appendChild(text);*/
+}
 
 
+/*
+Algorithm implementation methods
+ */
+ function getWindSpeedAndWeatherSum(lat, lon) {
+     var req = createWeatherReq();
+     req.onload = function() {
+         var res = JSON.parse(req.responseText);
 
+         var windIndex = getWindIndex(res.wind.speed);
+         var weatherIndex = getWeatherIndex(res.weather[0].id);
 
+        return windIndex + weatherIndex;
+
+     }
+ }
+
+function getWindIndex(windSpeed) {
+     if (windSpeed >= 90) {
+         return 4;
+     } else if (windSpeed >= 65 && windSpeed < 90) {
+         return 3;
+     } else if (windSpeed >= 45 && windSpeed < 65) {
+         return 2;
+     } else if (windSpeed >0 && windSpeed < 45) {
+         return 1;
+     } else {
+         return -1;
+     }
+}
+
+function getWeatherIndex(code) {
+     if ($.inArray(code,severeWeatherCode) != -1) {
+         return 1;
+     } else {
+         return 0;
+     }
+}
 
 
 
