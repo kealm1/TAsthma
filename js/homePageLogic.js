@@ -45,6 +45,12 @@ V1.1
 * -bug fixed
 *   -hide scrollbar of box
 *
+*   v2.1.1
+*       -faster loading
+*
+*   v2.2.2
+*      - bugfixed (infoWindow)
+*
 * */
 
 //reference the customized icon location
@@ -349,8 +355,7 @@ function getCurrentInfo(lat, lon) {
     var req = createWeatherReq(lat, lon);
     req.onload = function() {
         if (marker != undefined) {
-        marker.setMap(null);
-        }
+        marker.setMap(null);}
         var res = JSON.parse(this.responseText);
 
         map.setCenter(new google.maps.LatLng(lat, lon));
@@ -362,43 +367,36 @@ function getCurrentInfo(lat, lon) {
             },
             map: map
         });
-        var pm10Value = getPM10value(pm10Measures,lat,lon);
+        var pm10Value = getPM10Value(pm10Measures,lat,lon);
 
         var windIndex = getWindIndex(res.wind.speed);
         var weatherIndex = getWeatherIndex(res.weather[0].id);
         var pm10Index = getPM10Index(pm10Value);
         var grassLandIndex = getGrasslandIndex(lat,lon)
         var riskScore = windIndex + weatherIndex + pm10Index + grassLandIndex;
-        displayInfoInBox(res.name, riskScore);
-        infoWindow.setContent(
-            setInfoWindowContent(res.name, res.main.temp, res.weather[0].main, riskScore)
-        );
-        infoWindow.setOptions({
-            pixelOffset: {
-                width: 0,
-                height: 0
-            }
-        });
-        infoWindow.open(map,marker);
-        map.setZoom(13);
+
+        markerInfoWindow(res.name, res.main.temp, res.weather[0].main, riskScore);
 
         marker.addListener('click', function() {
-
-            infoWindow.setContent(
-                setInfoWindowContent(res.name, res.main.temp, res.weather[0].main, riskScore)
-            );
-            infoWindow.setOptions({
-                pixelOffset: {
-                    width: 0,
-                    height: 0
-                }
-            });
-
-            infoWindow.open(map,marker);
-            displayInfoInBox(res.name, riskScore);
+            markerInfoWindow(res.name, res.main.temp, res.weather[0].main, riskScore);
         });
     };
     req.send();
+}
+
+function markerInfoWindow(name,temp,weather,score) {
+    displayInfoInBox(name, score);
+    infoWindow.setContent(
+        setInfoWindowContent(name, temp, weather, score)
+    );
+    infoWindow.setOptions({
+        pixelOffset: {
+            width: 0,
+            height: 0
+        }
+    });
+    infoWindow.open(map,marker);
+    map.setZoom(13);
 }
 
 /*new Async OpenWeatherMap request based on coordinates*/
