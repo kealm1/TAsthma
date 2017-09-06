@@ -1,7 +1,7 @@
 /*
-V2.0
+V2.1
 Author: team IRIS
-Date: 30/08/17
+Date: 01/09/17
 
 V1.1
 * Add if condition to prevent accuweather api ran out of call and destroy all weather info display
@@ -34,6 +34,9 @@ V1.1
 * - search bar bug fixed (only return results in VIC)
 * - infoWindow auto pop out after searching
 * - layout change (customized icon)
+*
+* V2.1
+* -box risk visualisation
 * */
 
 
@@ -92,8 +95,6 @@ var input; //search bar
 var placeSearched; //contains location with valid search
 //var typedInPat; //text place searc
 
-var boxElement;
-
 var dayParam = {
     1: 'MON',
     2: 'TUE',
@@ -108,7 +109,6 @@ var monthParam = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP',
 
 //base function when the page is loaded
 function initialize() {
-    boxElement = document.getElementById('infoBox');
     infoWindow = new google.maps.InfoWindow();
     var mapOptions = {
         zoom: 10,
@@ -171,6 +171,7 @@ function initialize() {
         });
         infoWindow.open(map);
 
+        displayInfoInBox(event.feature.getProperty("city"), event.feature.getProperty("riskScore"));
     });
 }
 
@@ -294,7 +295,7 @@ function getCurrentInfo(lat, lon) {
         var riskScore = windIndex + weatherIndex + pm10Index + grassLandIndex;
         var rating = getRiskRating(riskScore);
 
-        displayinfoOnBox(res.name, windIndex,weatherIndex,pm10Index,grassLandIndex);
+        displayInfoInBox(res.name, riskScore);
         infoWindow.setContent(
             "<br /><strong>" + res.name + "</strong>"
             + "<br />" + res.main.temp + "&deg;C"
@@ -332,6 +333,7 @@ function getCurrentInfo(lat, lon) {
             });
 
             infoWindow.open(map,marker);
+            displayInfoInBox(res.name, riskScore);
         });
         map.setZoom(13);
     };
@@ -413,7 +415,9 @@ function degToRad(deg) {
          var pm10Index = getPM10Index(getPM10Measure(lat,lon));
          var grasslandIndex = getGrasslandIndex(lat,lon);
 
-         displayinfoOnBox(name, windIndex, weatherIndex, pm10Index, grasslandIndex);
+         var score = windIndex + weatherIndex + pm10Index + grasslandIndex;
+
+         displayInfoInBox(name, score);
 
      }
      req.send()
@@ -497,18 +501,23 @@ function getRiskRating(score) {
     if (score >= 9) {
         res['rating'] = 'EXTREME';
         res ['desc'] = 'You need to prepare for a potential Thunderstorm Asthma outbreak.';
+        res ['colour'] = '#ff0000';
     } else if (score >= 6 && score < 9) {
         res['rating'] = 'HIGH';
         res ['desc'] = 'You can chill at home.';
+        res['colour'] = '#ff9900'
     } else if (score >= 4 && score < 6) {
         res['rating'] = 'MEDIUM';
         res ['desc'] = 'You can go outside but remember to take your pills.';
+        res['colour'] = '#ffff33'
     } else if (score >= 0 && score < 4) {
         res['rating'] = 'LOW';
         res ['desc'] = 'You can go outside to get your tan.';
+        res['colour'] = '#00ff33'
     } else {
         res['rating'] = 'Error';
         res ['desc'] = 'oops, nothing to show';
+        res['colour'] = '#ff0000'
     }
     return res;
 }
@@ -525,9 +534,8 @@ function getGrasslandIndex(lat,lon) {
     return index;
 }
 
-function displayinfoOnBox(name, windIndex, weatherIndex, pm10Index, grasslandIndex) {
+function displayInfoInBox(name,score) {
 
-    var score = windIndex + weatherIndex + pm10Index + grasslandIndex;
     var rating = getRiskRating(score);
     var newDate = new Date();
     var day = dayParam[newDate.getDay()];
@@ -535,13 +543,13 @@ function displayinfoOnBox(name, windIndex, weatherIndex, pm10Index, grasslandInd
     var month = monthParam[newDate.getMonth()];
     var dateString = day + ', ' + date + ' ' + month;
 
-    var details = '-----------------------------------------wind: '
-        + windIndex + ', weather: ' + weatherIndex
-        + ' pm10:' + pm10Index + 'grassland: ' + grasslandIndex;
-    var text = "you\' re located in " + name + ". "
-        + 'Today is ' + dateString + ', and your risk score is ' + score + '. Basically the risk level is '
-        + rating['rating'] + '. ' + rating['desc'];
-    boxElement.innerText = text + details;
+     var box = document.getElementById('infoBox');
+    box.style.backgroundColor = rating.colour;
+    document.getElementById('dateDiv').innerText = dateString;
+    document.getElementById('regionDiv').innerText = name + ', VIC';
+    document.getElementById('riskRate').innerText = rating.rating;
+    document.getElementById('descDiv').innerText = rating.desc;
+    box.style.visibility = 'visible';
 }
 
 
