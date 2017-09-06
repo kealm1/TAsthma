@@ -94,16 +94,16 @@
 					</div>
 				<div class="col-md-2">
 					<div id="infoBox">
-						This section is not available at the moment, will display your location risk level shortly
+
 					</div>
 				</div>
 					<div class="col-md-10">
 						<!--<input type="text" id="searchBar" placeholder="Search a location" style="width: 80%; font-size: 10px; "/>
 						<button type="search" id="searchBtn" onclick="searchLocation()">Search</button>-->
-						<form class="form-wrapper" id="searchForm">
+						<form class="form-wrapper" id="searchForm" onsubmit="return false">
 							<input id="search" placeholder="Search for..." required>
 							<input type="button" value="Locate me" id="locaMe" onclick="locateMe()">
-							<input type="button" value="go" id='submit' onclick="searchLocation()">
+							<input type="button" value="go" id='submit' onclick="manualLookUp()">
 
 						</form>
                         <div class="fh5co-grid" id="mapDemo">
@@ -117,10 +117,10 @@
 							<br />
 						<br />
 
-						<div class="AccuWeather-logo-brand">
+						<!--<div class="AccuWeather-logo-brand">
 							<font size="2">pollen count and air quality information provided by:</font>
 							<a class="AccuWeather-logo" href="https://www.accuweather.com"><img src="images/AW_Stack_Black.png" width="50" height="50"></a>
-						</div>
+						</div>-->
 					</div>
 			</div>
 	</section>
