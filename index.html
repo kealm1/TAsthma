@@ -59,7 +59,7 @@
 							</div>
 						</div>
 						<div class="col-md-9">
-							<ul class="nav text-center">
+							<ul class="nav text-left">
 								<li class="active"><a href="index.html"><span>Risk</span></a></li>
 								<li><a href="background.html">Background</a></li>
 								<!--<li><a href="services.html">Preparation</a></li>-->
@@ -75,21 +75,36 @@
 
 	<section id="work">
 			<div class="container">
+				<form class="form-wrapper" id="searchForm" onsubmit="return false">
+					<input id="search" placeholder="Search for..." required>
+					<input type="button" value="Locate me" id="locaMe" onclick="locateMe()">
+					<input type="button" value="go" id='submit' onclick="manualLookUp()">
+				</form>
 				<div class="col-md-3">
-					<div id="infoBox">
-
+					<div id="infoBox" class="fh5co-grid">
+						<div id='regionDiv' class="textBox location">
+							South Yarra, VIC
+					</div>
+						<div id="dateDiv" class = "textBox date">
+							FRI, 01 SEP
+						</div>
+						<center>
+						<div id="riskDiv" class="textBox circle">
+							<p id="riskRate">EXTREME</p>
+							RISK
+						</div>
+						</center>
+						<div id="descDiv" class="textBox desc">
+							You can go outside to get your tan
+						</div>
 					</div>
 				</div>
-					<div class="col-md-9">
-						<form class="form-wrapper" id="searchForm" onsubmit="return false">
-							<input id="search" placeholder="Search for..." required>
-							<input type="button" value="Locate me" id="locaMe" onclick="locateMe()">
-							<input type="button" value="go" id='submit' onclick="manualLookUp()">
 
-						</form>
+					<div class="col-md-9">
                         <div class="fh5co-grid" id="mapDemo">
 
 						</div>
+					</div>
 			</div>
 	</section>
 
