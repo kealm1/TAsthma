@@ -1,7 +1,7 @@
 /*
-V2.1
+V2.2
 Author: team IRIS
-Date: 01/09/17
+Date: 03/09/17
 
 V1.1
 * Add if condition to prevent accuweather api ran out of call and destroy all weather info display
@@ -37,9 +37,17 @@ V1.1
 *
 * V2.1
 * -box risk visualisation
+*
+* v2.2
+* -refine the popup window
+* -header banner added
+*
+* -bug fixed
+*   -hide scrollbar of box
+*
 * */
 
-
+//reference the customized icon location
 var mapMarkers = {
     'LOW': 'https://image.ibb.co/msomxQ/l.png',
     'MEDIUM': 'https://image.ibb.co/mQ1Lrk/m.png',
@@ -52,64 +60,113 @@ var geoJSON = {
     features: []
 };
 
-var map;
-var infoWindow;
+var map; //google map api
+var infoWindow; //google infoWindow, popup
+
+var rating; // store a location risk results (rating, desc, colour code)
+
 
 var openWeatherMapKey = "7814dd27bd44184ffe859c64f61f28e1";
 var openWeatherCurByCoordBase="https://api.openweathermap.org/data/2.5/weather?";
 
+//severe weather codes for TA, provided by openWeatherMap
 var severeWeatherCode = [200,201,202,210,211,212,221,230,231,232,502,503,504];
-var grasslands = [ //just demo for now
-    { //CBD, radius 5km
-        lat: -37.8141,
-        lon:144.9633,
-        radius: 5
+
+//grassland points with radius for algorithm grassland index calculation.
+var grasslands = [
+    {
+        lat: -38.19987,
+        lon:145.06141,
+        radius: 8.16
     },
     {
-        lat:-37.744961,
-        lon:144.800491,
-        radius: 12
+        lat:-38.253,
+        lon:145.1723,
+        radius: 6.14
     },
     {
-        lat: -37.599998,
-        lon: 144.949997,
-        radius: 25
+        lat: -38.06836,
+        lon: 145.28577,
+        radius: 11.8
     },
     {
-        lat: -37.833328,
-        lon: 144.983337,
-        radius: 10
+        lat: -37.89781,
+        lon: 145.07696,
+        radius: 6.65
     },
     {
-        lat: -37.683331,
-        lon: 144.949997,
-        radius: 27
-    }
+        lat: -37.93378,
+        lon: 145.17739,
+        radius: 5.06
+    },
+    {
+        lat: -37.90697,
+        lon: 144.6725,
+        radius: 3.65
+    },
 ];
 
+//bias the search to VIC
 var searchBound;
-var searchService;
-var autoCom; //help search
-var marker; //mark search result
-var input; //search bar
-var placeSearched; //contains location with valid search
-//var typedInPat; //text place searc
 
-var dayParam = {
-    1: 'MON',
-    2: 'TUE',
-    3: 'WED',
-    4: 'THU',
-    5: 'FRI',
-    6: 'SAT',
-    7: 'SUN'
-};
+//places service for manual text search
+var searchService;
+
+var autoCom; //google autocomplete
+
+var marker; //mark search result
+
+var input; //search bar
+
+var placeSearched; //contains location with valid search
+
+//convert day format
+var dayParam = [
+    'SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'
+]
+//convertmonth format
 var monthParam = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
 
 //base function when the page is loaded
 function initialize() {
     infoWindow = new google.maps.InfoWindow();
+
+    /*
+ * infoWindow customization, referenced from:
+ * http://en.marnoto.com/2014/09/5-formas-de-personalizar-infowindow.html
+ */
+    google.maps.event.addListener(infoWindow, 'domready', function() {
+
+        // Reference to the DIV which receives the contents of the infowindow using jQuery
+        var iwOuter = $('.gm-style-iw');
+
+        var iwBackground = iwOuter.prev();
+
+        // Remove the background shadow DIV
+        iwBackground.children(':nth-child(2)').css({'display' : 'none'});
+
+        // Remove the white background DIV
+        iwBackground.children(':nth-child(4)').css({'display' : 'none'});
+
+// Moves the arrow 70px to the left margin
+        iwBackground.children(':nth-child(3)').attr('style', function(i,s){ return s + 'left: 70px !important; bottom: 5px !important;'});
+
+        iwBackground.children(':nth-child(3)').find('div').children().css({'z-index' : '1',
+            'border': '5px solid ' + rating.colour});
+        iwOuter.css({'max-width': '160px', 'width':'160px', 'border': '5px solid ' + rating.colour});
+
+        var iwCloseBtn = iwOuter.next();
+
+// Reposition the button
+        iwCloseBtn.css({
+            opacity: '1', // by default the close button has an opacity of 0.7
+            right: '20px', top: '20px', // button repositioning
+        });
+    });
+
+
+  //  initialize map
     var mapOptions = {
         zoom: 10,
         center: new google.maps.LatLng(-37.8141,144.9633),
@@ -119,6 +176,7 @@ function initialize() {
     };
     map = new google.maps.Map(document.getElementById('mapDemo'),
         mapOptions);
+
 
     //configure search bar
     input = document.getElementById('search');
@@ -134,9 +192,9 @@ function initialize() {
     }
     autoCom = new google.maps.places.Autocomplete(input, option);
 
+    searchService = new google.maps.places.PlacesService(map); //init manual search service
 
-
-    searchService = new google.maps.places.PlacesService(map);
+    //perform auto search function, results automatically show if choose suggested location, or hit enter to do the search
    autoCom.addListener('place_changed', function() {
         placeSearched = autoCom.getPlace();
         if (!placeSearched || !placeSearched.geometry) {
@@ -146,18 +204,17 @@ function initialize() {
         }
     })
 
-    displayDefault();
-    initLocate();
+    displayDefault(); //function to display the default locations when loading the page
+    initLocate(); //function to location user current location when loading the page
 
-    //click to view default location info
+    //add listener for user to click to view default location info from pop up and info box
     map.data.addListener('click', function(event) {
+        displayInfoInBox(event.feature.getProperty("city"), event.feature.getProperty("riskScore"));
         infoWindow.setContent(
-            "<br /><strong>" + event.feature.getProperty("city") + "</strong>"
-            + "<br />" + event.feature.getProperty("weather")
-            + "<br />" + event.feature.getProperty("windSpeed") + ' km/h'
-            + "<br />" + "pm<sub>10</sub>: " + event.feature.getProperty("pm10") + "&#956;g/m<sup>3</sup>"
-            + "<br />" + 'risk score: ' + event.feature.getProperty("riskScore")
-            + "<br />" + 'risk rating: ' + event.feature.getProperty("riskRating")
+            setInfoWindowContent(event.feature.getProperty("city"),
+                event.feature.getProperty("temp"),
+                event.feature.getProperty("weather"),
+                event.feature.getProperty("riskScore"))
         );
         infoWindow.setOptions({
             position:{
@@ -170,11 +227,10 @@ function initialize() {
             }
         });
         infoWindow.open(map);
-
-        displayInfoInBox(event.feature.getProperty("city"), event.feature.getProperty("riskScore"));
     });
 }
 
+/*This function rquest default locations weather info and process the results*/
 function displayDefault(){
     var requestString = "https://api.openweathermap.org/data/2.5/group?id=2158177,2148876,2155718,2166370,7932638,2165171,2144095,2156878,2174360&units=metric"
         + "&APPID=" + openWeatherMapKey;
@@ -184,6 +240,7 @@ function displayDefault(){
     request.send();
 }
 
+/*create map data (geoJSON) based on weather request result*/
 function processResults() {
     var results = JSON.parse(this.responseText);
     if (results.list.length > 0) {
@@ -194,6 +251,8 @@ function processResults() {
     }
 }
 
+/*helper function for processing the default locations, this function retrieve weather info, wind, and coords from
+* the response, request pm10 values and calculate risk score and pass it to feature object*/
 function convertToGeoJson(data) {
     var lat = data.coord.lat;
     var lon = data.coord.lon;
@@ -210,6 +269,7 @@ function convertToGeoJson(data) {
         type: "Feature",
         properties: {
             city: data.name,
+            temp: data.main.temp,
             weather: data.weather[0].main,
             windSpeed: data.wind.speed,
             pm10: pm10Value,
@@ -257,7 +317,7 @@ function callback(results,status) {
         var priRes = results[0];
         var lat = priRes.geometry.location.lat();
         var lon = priRes.geometry.location.lng();
-        if (getDistance(-37.8141,144.9633,lat,lon) > 200) {
+        if (getDistance(-37.8141,144.9633,lat,lon) > 300) { //results not in melb region
             alert('No place found in VIC area');
             return;
         }
@@ -268,7 +328,7 @@ function callback(results,status) {
 }
 
 
-//request current  info
+/*function to place markers, and display risk info in popup and info box*/
 function getCurrentInfo(lat, lon) {
     var req = createWeatherReq(lat, lon);
     req.onload = function() {
@@ -293,18 +353,9 @@ function getCurrentInfo(lat, lon) {
         var pm10Index = getPM10Index(pm10Value);
         var grassLandIndex = getGrasslandIndex(lat,lon)
         var riskScore = windIndex + weatherIndex + pm10Index + grassLandIndex;
-        var rating = getRiskRating(riskScore);
-
         displayInfoInBox(res.name, riskScore);
         infoWindow.setContent(
-            "<br /><strong>" + res.name + "</strong>"
-            + "<br />" + res.main.temp + "&deg;C"
-            + "<br />" + res.weather[0].main
-            + "<br />" + res.wind.speed + ' km/h'
-            + "<br />" + "pm<sub>10</sub>: " + pm10Value + "&#956;g/m<sup>3</sup>"
-            + "<br />" + 'risk score: ' + riskScore
-            + "<br />" + 'rating: ' + rating.rating
-            + "<br />" + rating.desc
+            setInfoWindowContent(res.name, res.main.temp, res.weather[0].main, riskScore)
         );
         infoWindow.setOptions({
             pixelOffset: {
@@ -313,17 +364,12 @@ function getCurrentInfo(lat, lon) {
             }
         });
         infoWindow.open(map,marker);
+        map.setZoom(13);
+
         marker.addListener('click', function() {
 
             infoWindow.setContent(
-                "<br /><strong>" + res.name + "</strong>"
-                + "<br />" + res.main.temp + "&deg;C"
-                + "<br />" + res.weather[0].main
-                + "<br />" + res.wind.speed + ' km/h'
-                + "<br />" + "pm<sub>10</sub>: " + pm10Value + "&#956;g/m<sup>3</sup>"
-                + "<br />" + 'risk score: ' + riskScore
-                + "<br />" + 'rating: ' + rating.rating
-                + "<br />" + rating.desc
+                setInfoWindowContent(res.name, res,main.temp, res.weather[0].main, riskScore)
             );
             infoWindow.setOptions({
                 pixelOffset: {
@@ -335,11 +381,11 @@ function getCurrentInfo(lat, lon) {
             infoWindow.open(map,marker);
             displayInfoInBox(res.name, riskScore);
         });
-        map.setZoom(13);
     };
     req.send();
 }
 
+/*new Async OpenWeatherMap request based on coordinates*/
 function createWeatherReq(lat, lon) {
     var link = openWeatherCurByCoordBase + 'lat=' + lat + '&lon=' + lon + '&APPID=' + openWeatherMapKey + "&units=metric";
     var newRequest = new XMLHttpRequest();
@@ -347,6 +393,7 @@ function createWeatherReq(lat, lon) {
     return newRequest;
 }
 
+//find users current location
 function locateMe() {
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(function(position) {
@@ -360,6 +407,7 @@ function locateMe() {
     }
 }
 
+//init function to locate user when loading the page
 function initLocate() {
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(function(position) {
@@ -397,12 +445,13 @@ function getDistance(orLat, orLon, deLat, deLon) {
     return radius * c;
 }
 
+//helper math function
 function degToRad(deg) {
     return deg * (Math.PI/180);
 }
 
 
-////sections to calculate score on wind and weather condition
+//calculate risk score and display risk info in box for a given location (using coords)
  function indexSum(lat, lon) {
      var req = createWeatherReq(lat,lon);
      req.onload = function() {
@@ -423,6 +472,7 @@ function degToRad(deg) {
      req.send()
  }
 
+ //index for wind factors
 function getWindIndex(windSpeed) {
      if (windSpeed >= 90) {
          return 4;
@@ -437,6 +487,7 @@ function getWindIndex(windSpeed) {
      }
 }
 
+//index for weather factor
 function getWeatherIndex(code) {
      if ($.inArray(code,severeWeatherCode) != -1) {
          return 1;
@@ -445,7 +496,9 @@ function getWeatherIndex(code) {
      }
 }
 
-/////pm10 measures based on distance between location and sites, chose the shortest
+/*pm10 measures based on distance between location and sites
+* assumption:
+*   -nearest site measurement is the location pm10 level*/
 function getPM10Value(res,lat, lon) {
     var shortest = 100000;
     var value = 0;
@@ -465,6 +518,7 @@ function getPM10Value(res,lat, lon) {
     }
 }
 
+//index for pm10 factor
 function getPM10Index(value) {
     if (value >= 75) { //extremely high
         return 4;
@@ -479,6 +533,8 @@ function getPM10Index(value) {
     }
 }
 
+/*ajax call to a php script to request data from EPA API
+* NOTE: current logic cannot do the async request, THIS NEEDED TO BE FIXED*/
 function getPM10Measure(lat,lon) {
     var value;
     $.ajax({
@@ -495,7 +551,7 @@ function getPM10Measure(lat,lon) {
     return value;
 }
 
-
+//get the risk info (rating, one sentence desc, and colour code.
 function getRiskRating(score) {
     var res = {};
     if (score >= 9) {
@@ -522,6 +578,10 @@ function getRiskRating(score) {
     return res;
 }
 
+/*
+* index for grassland factor
+* assumption:
+*   -within a grassland radius will be considered as high risk, score 1 */
 function getGrasslandIndex(lat,lon) {
     var index = 0;
     for (var i = 0; i < grasslands.length; i++) {
@@ -534,6 +594,7 @@ function getGrasslandIndex(lat,lon) {
     return index;
 }
 
+//display the infomation to the side box dynamically
 function displayInfoInBox(name,score) {
 
     var rating = getRiskRating(score);
@@ -550,6 +611,18 @@ function displayInfoInBox(name,score) {
     document.getElementById('riskRate').innerText = rating.rating;
     document.getElementById('descDiv').innerText = rating.desc;
     box.style.visibility = 'visible';
+}
+
+//set the content in info window
+function setInfoWindowContent(city, degree, condition, score) {
+    rating = getRiskRating(score);
+    var content = "<div id='windowContainer'>" +
+                            "<br /><strong>" + city + "</strong>" +
+                            "<br />" + degree + "&deg;C" +
+                            "<br/>" + condition +
+                            "<br />" + "Risk Level:" + "<strong>" + rating.rating + "</strong>"
+                    "</div>";
+     return content;
 }
 
 
