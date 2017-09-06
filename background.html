@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
 <!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
@@ -6,7 +7,7 @@
 	<head>
 	<meta charset="utf-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<title>TAsthma-Thunderstorm Asthma hotspots</title>
+	<title>TAsthma-thunderstorm asthma hotspots</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="description" content="Free HTML5 Template by FREEHTML5.CO" />
 	<meta name="keywords" content="free html5, free template, free bootstrap, html5, css3, mobile first, responsive" />
@@ -25,6 +26,20 @@
 
 	//////////////////////////////////////////////////////
 	 -->
+
+  	<!-- Facebook and Twitter integration -->
+	<meta property="og:title" content=""/>
+	<meta property="og:image" content=""/>
+	<meta property="og:url" content=""/>
+	<meta property="og:site_name" content=""/>
+	<meta property="og:description" content=""/>
+	<meta name="twitter:title" content="" />
+	<meta name="twitter:image" content="" />
+	<meta name="twitter:url" content="" />
+	<meta name="twitter:card" content="" />
+
+	<!-- Place favicon.ico and apple-touch-icon.png in the root directory -->
+	<link rel="shortcut icon" href="favicon.ico">
 
 	<link href='https://fonts.googleapis.com/css?family=Roboto+Slab:400,300,700|Roboto:300,400' rel='stylesheet' type='text/css'>
 	
@@ -45,10 +60,9 @@
 	<script src="js/respond.min.js"></script>
 	<![endif]-->
 
-
 	</head>
-	<body>
-	<div class="box-wrap">
+	<section>
+	<div class="box-wrap" id="heatMap">
 		<header role="banner" id="fh5co-header">
 			<div class="container">
 				<nav class="navbar navbar-default">
@@ -60,38 +74,36 @@
 						</div>
 						<div class="col-md-9">
 							<ul class="nav text-center">
-								<li class="active"><a href="index.html"><span>Risk</span></a></li>
-								<li><a href="background.html">Background</a></li>
+								<li><a href="index.html"><span>Risk</span></a></li>
+								<li class="active"><a href="background.html">Background</a></li>
 								<!--<li><a href="services.html">Preparation</a></li>-->
 								<li><a href="Aboutus.html">About Us</a></li>
 							</ul>
 						</div>
 					</div>
 				</nav>
-		  </div>
+			</div>
 		</header>
 
-
-
-	<section id="work">
+		<section id="work">
+		<main id="main">
 			<div class="container">
-				<div class="col-md-3">
-					<div id="infoBox">
+				<div class="col-md-12 animate-box">
+					<div class="fh5co-grid" id="heat">
 
 					</div>
+					<p>
+						* The heatmap above represents low to high risk zones for Thunderstorm Asthma outbreaks.
+						It is a simulation of data capturing the concentration of breathing-problem related
+						distress calls made to Emergency Services Telecommunications Authority during the
+						Thunderstorm Asthma epidemic on 21 November 2016. </p>
 				</div>
-					<div class="col-md-9">
-						<form class="form-wrapper" id="searchForm" onsubmit="return false">
-							<input id="search" placeholder="Search for..." required>
-							<input type="button" value="Locate me" id="locaMe" onclick="locateMe()">
-							<input type="button" value="go" id='submit' onclick="manualLookUp()">
-
-						</form>
-                        <div class="fh5co-grid" id="mapDemo">
-
-						</div>
 			</div>
-	</section>
+		</main>
+			</section>
+
+
+
 
 
 		<footer id="footer" role="contentinfo">
@@ -107,8 +119,6 @@
 		</footer>
 	</div>
 	<!-- END: box-wrap -->
-
-
 	
 	<!-- jQuery -->
 	<script src="js/jquery.min.js"></script>
@@ -122,13 +132,9 @@
 	<!-- Main JS (Do not remove) -->
 	<script src="js/main.js"></script>
 
-	<!--js-->
-	<script type="text/javascript" src="js/homePageLogic.js"></script>
-
-	<!--google map js api-->
-	<script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCFZ97_ioIOkM9afRcHDrHh_zMPFwvpyJY&libraries=visualization,places&callback=initialize">
+	<script type="text/javascript" src="js/backgroundPage.js"></script>
+	<script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCFZ97_ioIOkM9afRcHDrHh_zMPFwvpyJY&libraries=visualization&callback=init">
 	</script>
-
 
 	</body>
 </html>
