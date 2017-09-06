@@ -1,42 +1,90 @@
+/*
+V1.3
+Author: team IRIS
+Date: 27/08/17
+
+V1.1
+* Add if condition to prevent accuweather api ran out of call and destroy all weather info display
+* update if into try catch to handle exception
+*
+* V1.2 updates
+* adding google auto complete
+*
+* V1.3
+* -removed accuweather API (pollen count is always zero, useless)
+* -add search bar to search location
+*   integrate google auto complete to search bar (search constrain to au only)
+*   display current weather fo searched location
+* add locate me function using browser's geolocation
+*
+* V1.4
+* -add places service to allow user do manual search (input text then search instead of select suggested location first
+* */
 var map;
+var infoWindow;
 var geoJSON = {
     type: "FeatureCollection",
         features: []
 };
 var request;
 var openWeatherMapKey = "7814dd27bd44184ffe859c64f61f28e1";
-var accuWeatherKey = "gT2cRQgWlT95iS6IUIzIGm0U1wGgX7E5";
-var pollenRequest;
-var pollenRequestBase = "https://dataservice.accuweather.com/forecasts/v1/daily/1day/"
-var accuLocationIDs = [
-    15581,15570,15849,15536,15609,15773,2266035,15744,15552
-];
+var openWeatherCurByCoordBase="https://api.openweathermap.org/data/2.5/weather?";
 
 
+var autoCom; //help search
+var marker; //mark search result
+var placeService; //google places services
+var input; //search bar
+var placeSearched; //contains location with valid search
+//var typedInPat; //text place searc
+
+
+//base function when the page is loaded
 function initialize() {
-    var infowindow = new google.maps.InfoWindow();
+    infoWindow = new google.maps.InfoWindow();
     var mapOptions = {
         zoom: 10,
-        center: new google.maps.LatLng(-37.8141,144.9633)
+        center: new google.maps.LatLng(-37.8141,144.9633),
+        streetViewControl: false,
+        mapTypeControl: false,
+        fullscreenControl: false
     };
     map = new google.maps.Map(document.getElementById('mapDemo'),
         mapOptions);
 
+    //add places services for manual look up location
+    placeService = new google.maps.places.PlacesService(map);
+
+    //configure search bar
+    input = document.getElementById('search');
+
+    autoCom = new google.maps.places.Autocomplete(input);
+    autoCom.setComponentRestrictions({country: 'au'});
+
+   /* autoCom.addListener('place_changed', function() {
+        placeSearched = autoCom.getPlace();
+        if (!placeSearched) {
+            alert('Please select a suggested address');
+        } else if (!placeSearched.geometry) {
+            placeSearched = manualLookUp();
+        } else {
+            getCurrentWeather(placeSearched.geometry.location.lat(),placeSearched.geometry.location.lng());
+        }
+    })*/
     displayHeatMap();
 
-//comment this line when developing due to accu weather call limitation
-    //getWeathers();
+    getWeathers();
 
     map.data.addListener('click', function(event) {
-        infowindow.setContent(
+        infoWindow.setContent(
            // "<img src=" + event.feature.getProperty("icon") + ">" +
             "<br /><strong>" + event.feature.getProperty("city") + "</strong>"
             + "<br />" + event.feature.getProperty("temperature") + "&deg;C"
             + "<br />" + event.feature.getProperty("weather")
-            + "<br />Pollen count: " + event.feature.getProperty("pollenCount")
-            + "<br />Air quality: " + event.feature.getProperty("airQuality")
+            + "<br />Pollen count: Not yet available"
+            + "<br />Air quality: Not yet available"
         );
-        infowindow.setOptions({
+        infoWindow.setOptions({
             position:{
                 lat: event.latLng.lat(),
                 lng: event.latLng.lng()
@@ -46,7 +94,7 @@ function initialize() {
                 height: -15
             }
         });
-        infowindow.open(map);
+        infoWindow.open(map);
 
     });
 
@@ -69,7 +117,7 @@ var processResults = function() {
     if (results.list.length > 0) {
         //resetData();
         for (var i = 0; i < results.list.length; i++) {
-            geoJSON.features.push(jsonToGeoJson(results.list[i],i));
+            geoJSON.features.push(jsonToGeoJson(results.list[i]));
         }
         drawIcons(geoJSON);
     }
@@ -77,14 +125,7 @@ var processResults = function() {
 
 
 // For each result that comes back, convert the data to geoJSON
-function jsonToGeoJson(weatherItem, index) {
-    //request pollen count
-    var pollenLink = pollenRequestBase + accuLocationIDs[index] + '?apikey=' + accuWeatherKey + '&details=true';
-    pollenRequest = new XMLHttpRequest();
-    pollenRequest.open('get',pollenLink,false);
-    pollenRequest.send();
-   // console.log(pollenRequest.responseText);
-    var res = JSON.parse(pollenRequest.responseText);
+function jsonToGeoJson(weatherItem) {
 
     var feature = {
         type: "Feature",
@@ -99,11 +140,9 @@ function jsonToGeoJson(weatherItem, index) {
             windSpeed: weatherItem.wind.speed,
             windDegrees: weatherItem.wind.deg,
            // windGust: weatherItem.wind.gust,
-            icon: "http://openweathermap.org/img/w/"
+            icon: "https://openweathermap.org/img/w/"
             + weatherItem.weather[0].icon  + ".png",
-            coordinates: [weatherItem.coord.lon, weatherItem.coord.lat],
-            pollenCount: res.DailyForecasts[0].AirAndPollen[1].Value + res.DailyForecasts[0].AirAndPollen[2].Value + res.DailyForecasts[0].AirAndPollen[3].Value + res.DailyForecasts[0].AirAndPollen[4].Value,
-            airQuality: res.DailyForecasts[0].AirAndPollen[0].Category
+            coordinates: [weatherItem.coord.lon, weatherItem.coord.lat]
         },
         geometry: {
             type: "Point",
@@ -127,16 +166,6 @@ function drawIcons(weather) {
     map.data.addGeoJson(geoJSON);
 };
 
-// Clear data layer and geoJSON
-/*var resetData = function() {
-    geoJSON = {
-        type: "FeatureCollection",
-        features: []
-    };
-    map.data.forEach(function(feature) {
-        map.data.remove(feature);
-    });
-};*/
 
 
 function displayHeatMap() {
@@ -199,28 +228,129 @@ function displayHeatMap() {
 
 }
 
-//google.maps.event.addDomListener(window, 'load', initialize);
+function searchLocation() {
+    var place = autoCom.getPlace();
+    if (!place || !place.geometry) {
+        alert('Please select a suggested address')
+    } else {
+        getCurrentWeather(place.geometry.location.lat(), place.geometry.location.lng());
+    }
+}
+//dup
+function manualLookUp() {
+    var text = input.val();
+    var placeToLook = {
+        query: text
+    };
+    placeService.textSearch(placeToLook, function() {
+        if (status == google.maps.places.PlacesServiceStatus.OK) {
+            var firstR = res[0]; //get first result from the list
+            var detailsReq = {
+                reference: firstR.reference
+            };
+            placeService.getDetails(detailsReq, function() {
+                if (status == google.maps.places.PlacesServiceStatus.OK) {
+                     placeSearched = firstR;
+                     getCurrentWeather(placeSearched.geometry.location.lat(),placeSearched.geometry.location.lng());
+                } else {
+                    alert('something has gone wrong');
+                }
+            });
+        } else {
+            alert ('cannot process request');
+        }
+    });
+}
 
-//code for forcast/current weather based on postcode
+//request current weather info
+function getCurrentWeather(lat, lon) {
+    var link = openWeatherCurByCoordBase + 'lat=' + lat + '&lon=' + lon + '&APPID=' + openWeatherMapKey + "&units=metric";
+    var newRequest = new XMLHttpRequest();
+    newRequest.open('get',link,true);
+    newRequest.send();
 
-/*var reqLink = function(type, postcode) {
-    return "https://api.openweathermap.org/data/2.5/" + type + "?zip=" + postcode + ",au" + "&APPID=" + openWeatherMapKey;
-};
-var getData = function(link) {
-    request = new XMLHttpRequest();
-    request.open("get", link, true);
-    request.onload = displayData;
-    request.send();
+    newRequest.onload = function() {
+        if (marker != undefined) {
+        marker.setMap(null);
+        }
+        var res = JSON.parse(this.responseText);
 
-};
+        map.setCenter(new google.maps.LatLng(lat, lon));
 
-var displayData = function() {
-    var results = JSON.parse(this.responseText);
+        marker = new google.maps.Marker({
+            position: {
+                lat: lat,
+                lng: lon
+            },
+            map: map
+        });
+        marker.addListener('click', function() {
+            infoWindow.setContent(
+                /*"<img src=" + "https://openweathermap.org/img/w/"
+                + res.weather[0].icon  + ".png", + ">"*/
+                "<br /><strong>" + res.name + "</strong>"
+                + "<br />" + res.main.temp + "&deg;C"
+                + "<br />" + res.weather[0].main
+                + "<br />" + res.wind.speed + 'km/h'
+                + "<br />" + res.main.humidity + '%'
+            );
+            infoWindow.open(map,marker);
+        });
+    };
+}
 
-    var find = document.getElementById('weatherBox');
-    find.innerHTML = 'City Name: ' + results.city.name + '</br>'
-                + 'condition: ' + results.list[0].weather[0].main;
+function locateMe() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+            getCurrentWeather(position.coords.latitude, position.coords.longitude);
+        }, function() {
+            alert('Sorry, the service has failed.')
+        });
+    } else {
+        alert('Sorry, your browser doesn\'t support this function');
+    }
+}
+
+/*function validateSearch() {
+    var text = input.val();
+    if (text.trim() == '' || text == null) {
+        alert('please type in information (location, address, postcode, etc.)');
+        return false;
+    } else if (placeSearched && text == typedInPat) {
+        getCurrentWeather(placeSearched.geometry.location.lat(), placeSearched.geometry.location.lng());
+        placeSearched = null;
+        typedInPat = '';
+        input.val('');
+        return false;
+    } else {
+        var placeToLook = {
+            query: text
+        };
+        placeService.textSearch(placeToLook, function() {
+            if (status == google.maps.places.PlacesServiceStatus.OK) {
+                var firstR = res[0]; //get first result from the list
+                var detailsReq = {
+                    reference: firstR.reference
+                };
+                placeService.getDetails(detailsReq, function() {
+                    if (status == google.maps.places.PlacesServiceStatus.OK) {
+                        placeSearched = firstR;
+                        typedInPat = input.val();
+                        document.getElementById('searchForm').submit();
+                    } else {
+                        alert('something has gone wrong');
+                    }
+                });
+            } else {
+                alert ('cannot process request');
+            }
+        });
+        return false;
+    }
 }*/
+
+
+
 
 
 
