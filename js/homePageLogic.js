@@ -127,6 +127,9 @@ var dayParam = [
 //convertmonth format
 var monthParam = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
+var pm10Measures;
+//store the hourly pm10 measurements
+
 
 //base function when the page is loaded
 function initialize() {
@@ -165,7 +168,7 @@ function initialize() {
         });
     });
 
-
+ console.log(pm10Measures);
   //  initialize map
     var mapOptions = {
         zoom: 10,
@@ -203,6 +206,19 @@ function initialize() {
             getCurrentInfo(placeSearched.geometry.location.lat(),placeSearched.geometry.location.lng());
         }
     })
+
+
+//request data
+    $.ajax({
+        url: 'scripts/pm10Request.php',
+        type: 'GET',
+        async: false
+    }).done(function(res) {
+        pm10Measures =  res;
+    }).fail(function() {
+        alert('Sorry, the request has failed');
+        pm10Measures = '[]';
+    });
 
     displayDefault(); //function to display the default locations when loading the page
     initLocate(); //function to location user current location when loading the page
@@ -256,7 +272,7 @@ function processResults() {
 function convertToGeoJson(data) {
     var lat = data.coord.lat;
     var lon = data.coord.lon;
-    var pm10Value = getPM10Measure(lat,lon);
+    var pm10Value = getPM10Value(pm10Measures,lat,lon);
 
     var pm10Index = getPM10Index(pm10Value);
     var windIndex = getWindIndex(data.wind.speed);
@@ -346,7 +362,7 @@ function getCurrentInfo(lat, lon) {
             },
             map: map
         });
-        var pm10Value = getPM10Measure(lat,lon);
+        var pm10Value = getPM10value(pm10Measures,lat,lon);
 
         var windIndex = getWindIndex(res.wind.speed);
         var weatherIndex = getWeatherIndex(res.weather[0].id);
@@ -369,7 +385,7 @@ function getCurrentInfo(lat, lon) {
         marker.addListener('click', function() {
 
             infoWindow.setContent(
-                setInfoWindowContent(res.name, res,main.temp, res.weather[0].main, riskScore)
+                setInfoWindowContent(res.name, res.main.temp, res.weather[0].main, riskScore)
             );
             infoWindow.setOptions({
                 pixelOffset: {
@@ -461,7 +477,7 @@ function degToRad(deg) {
 
          var windIndex = getWindIndex(res.wind.speed);
          var weatherIndex = getWeatherIndex(res.weather[0].id);
-         var pm10Index = getPM10Index(getPM10Measure(lat,lon));
+         var pm10Index = getPM10Index(getPM10Value(pm10Measures,lat,lon));
          var grasslandIndex = getGrasslandIndex(lat,lon);
 
          var score = windIndex + weatherIndex + pm10Index + grasslandIndex;
@@ -533,23 +549,20 @@ function getPM10Index(value) {
     }
 }
 
-/*ajax call to a php script to request data from EPA API
-* NOTE: current logic cannot do the async request, THIS NEEDED TO BE FIXED*/
-function getPM10Measure(lat,lon) {
-    var value;
+/*/!*ajax call to a php script to request data from EPA API
+* NOTE: current logic cannot do the async request, THIS NEEDED TO BE FIXED*!/
+function getPM10Measure() {
     $.ajax({
         url: 'scripts/pm10Request.php',
         type: 'GET',
         async: false
     }).done(function(res) {
-        value = getPM10Value(res,lat,lon);
+       pm10Mesures =  res;
     }).fail(function() {
         alert('Sorry, the request has failed');
-        value = -1;
-
+        pm10Mesures = '[]';
     });
-    return value;
-}
+}*/
 
 //get the risk info (rating, one sentence desc, and colour code.
 function getRiskRating(score) {
