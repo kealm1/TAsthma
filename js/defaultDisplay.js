@@ -1,5 +1,5 @@
 /*
-V1.4
+V1.5
 Author: team IRIS
 Date: 30/08/17
 
@@ -22,6 +22,9 @@ V1.1
 * -user can both hit enter or click button to do the search
 * -add places service to allow user do manual search (input text then search instead of select suggested location first
 * -basic score calculation based on weather and wind
+*
+* V1.5
+* -add pm10 factors to alg
 * */
 var map;
 var infoWindow;
@@ -101,6 +104,8 @@ function initialize() {
     });
 
     initLocate();
+
+    //getPM10Measures();
 
 }
 
@@ -232,14 +237,14 @@ function displayHeatMap() {
 
 }
 
-function searchLocation() {
+/*function searchLocation() {
     var place = autoCom.getPlace();
     if (!place || !place.geometry) {
         alert('Please select a suggested address')
     } else {
         getCurrentWeather(place.geometry.location.lat(), place.geometry.location.lng());
     }
-}
+}*/
 //dup
 function manualLookUp() {
     var text = input.value;
@@ -283,8 +288,8 @@ function getCurrentWeather(lat, lon) {
             },
             map: map
         });
-
-        var riskScore =  getWeatherIndex(res.weather[0].id) + getWindIndex(res.wind.speed);
+        var pm10Value = getPM10Measure(lat,lon);
+        var riskScore =  getWeatherIndex(res.weather[0].id) + getWindIndex(res.wind.speed) + getPM10Index(pm10Value);
 
         marker.addListener('click', function() {
             infoWindow.setContent(
@@ -295,6 +300,7 @@ function getCurrentWeather(lat, lon) {
                 + "<br />" + res.weather[0].main
                 + "<br />" + res.wind.speed + ' km/h'
                 + "<br />" + res.main.humidity + '%'
+                + "<br />" + 'pm10: ' + pm10Value
                 + "<br />" + 'risk score: ' + riskScore
             );
             infoWindow.open(map,marker);
@@ -329,6 +335,14 @@ function initLocate() {
     //locating unavailable, using CBD
     var text = document.createTextNode('the risk score for Melbourne CBD is ' + score);
     ele.appendChild(text);
+    /*var link = 'https://cors-anywhere.herokuapp.com/http://sciwebsvc.epa.vic.gov.au/aqapi/Sites?monitoringPurpose=1010&format=json&fromDate=20100101&toDate=20170808';
+    var request = new XMLHttpRequest();
+
+    request.open('get',link, false);
+    request.send();
+    var text = document.createTextNode(request.responseText);
+    ele.appendChild(text);*/
+
 
    /* var ele = document.getElementById('infoBox');
     var text;
@@ -357,6 +371,27 @@ function initLocate() {
 /*
 Algorithm implementation methods
  */
+
+//helper function to calculate the distance,
+// source from: https://stackoverflow.com/questions/27928/calculate-distance-between-two-latitude-longitude-points-haversine-formula
+function getDistance(orLat, orLon, deLat, deLon) {
+    var radius = 6371;
+    var dLat = degToRad(deLat - orLat);
+    var dLon = degToRad(deLon - orLon);
+
+    var a =Math.pow(Math.sin(dLat/2),2)
+        + Math.cos(degToRad(orLat)) * Math.cos(degToRad(deLat)) *
+        Math.pow(Math.sin(dLon/2),2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return radius * c;
+}
+
+function degToRad(deg) {
+    return deg * (Math.PI/180);
+}
+
+
+////sections to calculate score on wind and weather condition
  function getWindSpeedAndWeatherSum(lat, lon) {
      var req = createWeatherReq();
      req.onload = function() {
@@ -390,6 +425,56 @@ function getWeatherIndex(code) {
      } else {
          return 0;
      }
+}
+
+/////pm10 measures based on distance between location and sites, chose the shortest
+function getPM10Value(res,lat, lon) {
+    var shortest = 100000;
+    var value = 0;
+    if (res == '[]') {
+        return -1;
+    } else {
+        var data = JSON.parse(res);
+        for (var i = 0; i < data.length; i ++) {
+            var site = data[i];
+            var distance = getDistance(site.lat, site.lon, lat, lon);
+            if (distance <= shortest) {
+                value = site.value;
+                shortest = distance;
+            }
+        }
+        return value;
+    }
+}
+
+function getPM10Index(value) {
+    if (value >= 75) { //extremely high
+        return 4;
+    } else if (value >= 50 && value < 75) { //high
+        return 3;
+    }else if (value >=33 && value < 50) { //medium
+        return 2;
+    } else if (value >=0 && value < 33) { //low
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+function getPM10Measure(lat,lon) {
+    var value;
+    $.ajax({
+        url: 'scripts/pm10Request.php',
+        type: 'GET',
+        async: false
+    }).done(function(res) {
+        value = getPM10Value(res,lat,lon);
+    }).fail(function() {
+        alert('Sorry, the request has failed');
+        value = -1;
+
+    });
+    return value;
 }
 
 
