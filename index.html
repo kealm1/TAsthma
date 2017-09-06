@@ -85,37 +85,41 @@
 				</nav>
 		  </div>
 		</header>
-		<!-- END: header -->
-		<!--comment the banner-->
-		<!--<section id="intro">
-			<div class="container">
-				<div class="row">
-					<div class="col-lg-6 col-lg-offset-3 col-md-8 col-md-offset-2 text-center">
-						<div class="intro animate-box">
-							<h2>We are web agency based in London &amp; we love functional &amp; meaningful design.</h2>
-						</div>
-					</div>
-				</div>
-			</div>
-		</section>-->
+
+
 
 	<section id="work">
 			<div class="container">
 				<div class="row">
 					</div>
-					<div class="col-md-12">
+				<div class="col-md-2">
+					<div id="infoBox">
+						This section is not available at the moment, will display your location risk level shortly
+					</div>
+				</div>
+					<div class="col-md-10">
+						<!--<input type="text" id="searchBar" placeholder="Search a location" style="width: 80%; font-size: 10px; "/>
+						<button type="search" id="searchBtn" onclick="searchLocation()">Search</button>-->
+						<form class="form-wrapper" id="searchForm">
+							<input id="search" placeholder="Search for..." required>
+							<input type="button" value="Locate me" id="locaMe" onclick="locateMe()">
+							<input type="button" value="go" id='submit' onclick="searchLocation()">
+
+						</form>
                         <div class="fh5co-grid" id="mapDemo">
 
 						</div>
+						<font size="3">
 						* The heatmap above represents low to high risk zones for Thunderstorm Asthma outbreaks.
 						It is a simulation of data capturing the concentration of breathing-problem related
 						distress calls made to Emergency Services Telecommunications Authority during the
-						Thunderstorm Asthma epidemic on 21 November 2016. <br />
+						Thunderstorm Asthma epidemic on 21 November 2016. </font>
+							<br />
 						<br />
 
 						<div class="AccuWeather-logo-brand">
-							<font size="2">weather information provided by:</font>
-							<a class="AccuWeather-logo" href="http://www.accuweather.com"><img src="images/AW_Stack_Black.png" width="50" height="50"></a>
+							<font size="2">pollen count and air quality information provided by:</font>
+							<a class="AccuWeather-logo" href="https://www.accuweather.com"><img src="images/AW_Stack_Black.png" width="50" height="50"></a>
 						</div>
 					</div>
 			</div>
