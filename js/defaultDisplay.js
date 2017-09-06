@@ -25,7 +25,7 @@ function initialize() {
     displayHeatMap();
 
 //comment this line when developing due to accu weather call limitation
-    getWeathers();
+    //getWeathers();
 
     map.data.addListener('click', function(event) {
         infowindow.setContent(
