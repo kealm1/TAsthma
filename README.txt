@@ -1,14 +1,10 @@
 
 TITLE: 
-Closest - Fully Responsive Free HTML5 template
-
+Tasthma - Thunderstorm Asthma
 AUTHOR:
-DESIGNED & DEVELOPED by FREEHTML5.co
+iris Team
 
-Website: http://freehtml5.co/
-Twitter: http://twitter.com/fh5co
-Facebook: http://facebook.com/fh5co
-
+Website: https://www.tasthma.ml
 
 CREDITS:
 
