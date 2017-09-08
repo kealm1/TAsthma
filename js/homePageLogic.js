@@ -1,5 +1,5 @@
 /*
-V2.2.3
+V2.2.8
 Author: team IRIS
 Date: 05/09/17
 
@@ -55,6 +55,10 @@ V1.1
 *       - using google geocoding to get suburb name instead of using openWeatherMap, reduce risk
 *       - bug and typo fixed
 *
+*
+* v2.2.7 restrict the search to greater melb (postcode from 3000-3207 and 3800 for Monash clayton campus)
+* v 2.2.8 
+        -optimization (remove non-async call)
 * */
 
 //reference the customized icon location
@@ -104,11 +108,11 @@ var grasslands = [
         lon: 145.07696,
         radius: 6.65
     },
-    {
+    /*{
         lat: -37.93378,
         lon: 145.17739,
         radius: 5.06
-    },
+    },*/
     {
         lat: -37.90697,
         lon: 144.6725,
@@ -197,8 +201,8 @@ function initialize() {
 
     //restrict the search and autocomplete to VIC
     searchBound = new google.maps.LatLngBounds(
-        new google.maps.LatLng(-39, 141),
-        new google.maps.LatLng(-34,150)
+        new google.maps.LatLng(-38.54816, 144.42077),
+        new google.maps.LatLng(-37.35269, 145.49743)
     );
     var option = {
         bounds: searchBound,
@@ -215,24 +219,24 @@ function initialize() {
         if (!placeSearched || !placeSearched.geometry) {
             manualLookUp(); //if it's not a valid place object, perform a places textSearch to find location
         } else { //get risk info and display to website
-            locationInfoByCoords(placeSearched.geometry.location.lat(),placeSearched.geometry.location.lng());
+            locationInfoByCoords(placeSearched.geometry.location.lat(), placeSearched.geometry.location.lng());
         }
     })
 
 //request pm10 data and store it
     $.ajax({
         url: 'scripts/pm10Request.php',
-        type: 'GET',
-        async: false
+        type: 'GET'
     }).done(function(res) {
         pm10Measures =  res;
     }).fail(function() {
         alert('Oops, Something wrong at the back');
         pm10Measures = '[]';
+    }).always(function() {
+        displayDefault(); //function to display the default locations when loading the page
+        initLocate(); //function to location user current location when loading the page
     });
 
-    displayDefault(); //function to display the default locations when loading the page
-    initLocate(); //function to location user current location when loading the page
 
     //add listener for user to click to view default location info from pop up and info box
     map.data.addListener('click', function(event) {
@@ -292,7 +296,6 @@ function convertToGeoJson(data) {
 
     var score = pm10Index + windIndex + grasslandIndex + weatherIndex;
     var riskRating = getRiskRating(score).rating;
-    console.log(data.name + ' ' + data.wind.speed * 3.6 + " "+ pm10Value);
     var feature = {
         type: "Feature",
         properties: {
@@ -343,17 +346,26 @@ function manualLookUp() {
 function callback(results,status) {
     if (status == google.maps.places.PlacesServiceStatus.OK) {
         var priRes = results[0];
-        var lat = priRes.geometry.location.lat();
-        var lon = priRes.geometry.location.lng();
-        if (getDistance(-37.8141,144.9633,lat,lon) > 300) { // 300km away from cbd will be considered as out of our website scope
-            alert('Oops! The place you\'re looking for is not covered yet.');
-            return;
-        }
-        locationInfoByCoords(lat,lon);
+        locationInfoByCoords(priRes.geometry.location.lat(), priRes.geometry.location.lng());
     } else {
         alert('Oops! we cannot find the location, please try something else');
     }
 }
+
+function processPlaceObject(place) {
+    var lat = place.geometry.location.lat();
+    var lon = place.geometry.location.lng();
+    var components = place.address_components;
+    var name = getLocationNameFromResponse(components);
+    var postcode = getPostCodeFromResponse(components);
+    if (!validatePostcode(postcode)) {
+        alert('Oops! The place you\'re looking for is not covered yet.');
+        return;
+    } else {
+        getCurrentInfo(name,lat,lon);
+    }
+}
+
 
 //find suburbs using google geocoding and process and display to get risk info
 function locationInfoByCoords(lat,lon) {
@@ -361,9 +373,7 @@ function locationInfoByCoords(lat,lon) {
     geoCodingService.geocode({'location': coords, 'bounds': searchBound}, function(results, status) {
         if (status === 'OK') {
             if (results[0]) {
-                var components = results[0].address_components;
-                var name = getLocationNameFromResponse(components);
-                getCurrentInfo(name,lat,lon);
+                processPlaceObject(results[0]);
             } else {
                 window.alert('Oops! Cannot find your location name!');
             }
@@ -377,13 +387,41 @@ function locationInfoByCoords(lat,lon) {
 function getLocationNameFromResponse(components){
     var name = 'nothing';
     for (var i = 0; i < components.length; i++) {
-        if (components[i].types[0] == 'locality' || components[i].types[0] == 'political') {
+        var types = components[i].types;
+        if (($.inArray('locality', types) != -1 && $.inArray('political', types) != -1)
+        || ($.inArray('postal_code', types) != -1 && $.inArray('political', types) != -1)) {
             name = components[i].long_name;
             break;
         }
     }
     return name;
 }
+
+//get postcode from google response
+function getPostCodeFromResponse(components) {
+    var code = 0000;
+    for (var i = 0; i < components.length; i++) {
+        if (components[i].types[0] = 'postal_code') {
+            code = components[i].long_name;
+            if (!isNaN(code) && code.length == 4) {
+               break;
+            }
+        }
+    }
+    return code;
+}
+
+//check if postcode within greater melb, 3800 for Monash clayton campus
+function validatePostcode(postcode) {
+    if (postcode >= 3000 && postcode <= 3207) {
+        return true;
+    } else if (postcode == 3800) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 
 /*function to place markers, and display risk info in popup and info box*/
 function getCurrentInfo(name, lat, lon) {
@@ -410,7 +448,6 @@ function getCurrentInfo(name, lat, lon) {
         var grassLandIndex = getGrasslandIndex(lat,lon)
         var riskScore = windIndex + weatherIndex + pm10Index + grassLandIndex;
 
-        console.log(name + ' ' + res.wind.speed * 3.6 + ' ')
         //if location name was not defined by geocoding service, using the OpenWeatherMap name instead
         if (name == 'nothing') {
             name = res.name;
@@ -514,9 +551,15 @@ function degToRad(deg) {
              var name = 'nothing';
              if (results[0]) {
                  var components = results[0].address_components;
-                 name = getLocationNameFromResponse(components);
+                 var postcode = getPostCodeFromResponse(components);
+                 if (validatePostcode(postcode)) { //user currently located in greater melb
+                     name = getLocationNameFromResponse(components);
+                     var req = createWeatherReq(lat,lon);
+                 } else {
+                     alert('Oops! The place you\'re currently at is not covered yet.');
+                     var req = createWeatherReq(-37.8141,144.9633); //display info in CBD instead.
 
-                 var req = createWeatherReq(lat,lon);
+                 }
                  req.onload = function() {
                      var res = JSON.parse(req.responseText);
 
